@@ -1,0 +1,86 @@
+name: Native Build for Celeron N2807
+
+on:
+  push:
+    tags:
+      - 'v*' # Se activa al crear una etiqueta (ej. v1.0.0)
+  workflow_dispatch: # Permite ejecución manual
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Client Manifest
+        uses: actions/checkout@v4
+        with:
+          repository: minecraft-linux/mcpelauncher-manifest
+          path: mcpelauncher
+          submodules: recursive
+
+      - name: Checkout UI Manifest
+        uses: actions/checkout@v4
+        with:
+          repository: minecraft-linux/mcpelauncher-ui-manifest
+          path: mcpelauncher-ui
+          submodules: recursive
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            g++ clang cmake make git ca-certificates \
+            libssl-dev libpng-dev libx11-dev libxi-dev \
+            libcurl4-openssl-dev libudev-dev libevdev-dev \
+            libegl1-mesa-dev libasound2-dev \
+            qt6-base-dev qt6-webengine-dev qt6-declarative-dev \
+            libuv1-dev libzip-dev libprotobuf-dev protobuf-compiler \
+            libsdl3-dev
+
+      - name: Build mcpelauncher-client (Native Optimization)
+        run: |
+          cd mcpelauncher
+          mkdir build && cd build
+          # Optimizaciones específicas para Celeron N2807 (Silvermont)
+          export CFLAGS="-march=silvermont -O3 -pipe"
+          export CXXFLAGS="-march=silvermont -O3 -pipe"
+          
+          CC=clang CXX=clang++ cmake.. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DJNI_USE_JNIVM=ON \
+            -DGAMEWINDOW_SYSTEM=SDL3
+          make -j$(nproc)
+
+      - name: Build mcpelauncher-ui
+        run: |
+          cd mcpelauncher-ui
+          mkdir build && cd build
+          # Vinculamos con el cliente compilado arriba
+          cmake.. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DGAME_LAUNCHER_PATH=$(pwd)/../../mcpelauncher/build
+          make -j$(nproc)
+
+      - name: Prepare Release Artifacts
+        run: |
+          mkdir -p release_files
+          # Copiamos los binarios y recursos necesarios
+          cp mcpelauncher/build/mcpelauncher-client release_files/
+          cp mcpelauncher-ui/build/mcpelauncher-ui-qt release_files/
+          
+          # Crear el tarball
+          tar -cvf mcpelauncher-n2807-native.tar release_files/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: mcpelauncher-n2807-native.tar
+          name: Release ${{ github.ref_name }} (Native Celeron N2807)
+          body: |
+            Compilación optimizada para Intel Celeron N2807 (Silvermont).
+            - Backend: SDL3 (Para reducir underruns de ALSA)
+            - March: silvermont
+            - JNI: JNIVM habilitado
