@@ -1,4 +1,4 @@
-name: Native Build MCPelauncher (Qt6 + SDL3)
+name: Native Build MCPelauncher Arch-Based (Silvermont)
 
 on:
   push:
@@ -8,11 +8,25 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    # La "magia": Compilamos en Arch para que funcione en Arch
+    container:
+      image: archlinux:latest
+
     permissions:
       contents: write
 
     steps:
+      - name: Install Arch Dependencies
+        run: |
+          pacman -Syu --noconfirm
+          # Instalamos exactamente lo que pediste, pero actualizado a Qt6 para la rama compatible
+          pacman -S --noconfirm base-devel cmake git clang ca-certificates \
+            openssl curl libuv libzip protobuf qt6-base qt6-webengine \
+            qt6-declarative qt6-svg qt6-tools libxrandr libxinerama \
+            libxcursor libxi libpng libx11 zlib systemd-libs libevdev \
+            mesa alsa-lib libpulse libxtst libxkbcommon
+
       - name: Checkout Client
         uses: actions/checkout@v4
         with:
@@ -29,30 +43,18 @@ jobs:
           path: ui-build
           submodules: recursive
 
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            g++ clang cmake make git pkg-config ca-certificates \
-            libssl-dev libpng-dev libx11-dev libxi-dev \
-            libcurl4-openssl-dev libudev-dev libevdev-dev \
-            libegl1-mesa-dev libasound2-dev libpulse-dev \
-            qt6-base-dev qt6-webengine-dev qt6-declarative-dev \
-            qt6-base-private-dev libqt6svg6-dev \
-            libuv1-dev libzip-dev libprotobuf-dev protobuf-compiler \
-            libxrandr-dev libxcursor-dev libxinerama-dev libxkbcommon-dev libwayland-dev
-
       - name: Build SDL3
         run: |
           git clone --depth 1 --branch release-3.2.x https://github.com/libsdl-org/SDL.git /tmp/SDL3
           cmake -S /tmp/SDL3 -B /tmp/SDL3/build -DCMAKE_INSTALL_PREFIX=/usr -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
-          sudo cmake --build /tmp/SDL3/build -j$(nproc)
-          sudo cmake --install /tmp/SDL3/build
+          cmake --build /tmp/SDL3/build -j$(nproc)
+          cmake --install /tmp/SDL3/build
 
       - name: Build Client
         run: |
           cd client-build
           mkdir build && cd build
+          # Optimización quirúrgica para Celeron N2807
           export CFLAGS="-march=silvermont -O2 -pipe"
           export CXXFLAGS="-march=silvermont -O2 -pipe"
           CC=clang CXX=clang++ cmake .. \
@@ -65,23 +67,22 @@ jobs:
         run: |
           cd ui-build
           mkdir build && cd build
+          # Mismas optimizaciones para la UI
+          export CFLAGS="-march=silvermont -O2 -pipe"
+          export CXXFLAGS="-march=silvermont -O2 -pipe"
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -DGAME_LAUNCHER_PATH=$(pwd)/../../client-build/build
           make -j$(nproc)
-          
-          
+
       - name: Create Release Package
         run: |
           mkdir -p mcpelauncher-silvermont
-          
           find client-build/build -type f -executable -name "mcpelauncher-client" -exec cp {} mcpelauncher-silvermont/ \;
           find ui-build/build -type f -executable -name "mcpelauncher-ui*" -exec cp {} mcpelauncher-silvermont/ \;
           
-          ls -lh mcpelauncher-silvermont/
-          
-          echo "Built for Celeron N2807 (Silvermont)" > mcpelauncher-silvermont/readme.txt
-          echo "Backend: SDL3 | UI: Qt6" >> mcpelauncher-silvermont/readme.txt
+          echo "Built natively in Arch Linux container" > mcpelauncher-silvermont/readme.txt
+          echo "Architecture: Silvermont (Celeron N2807)" >> mcpelauncher-silvermont/readme.txt
           
           tar -cvf mcpelauncher-native-silvermont.tar mcpelauncher-silvermont/
 
