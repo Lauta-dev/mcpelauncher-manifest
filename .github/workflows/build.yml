@@ -54,25 +54,27 @@ jobs:
         run: |
           cd client-build
           mkdir build && cd build
-          # Optimización quirúrgica para Celeron N2807
           export CFLAGS="-march=silvermont -O2 -pipe"
           export CXXFLAGS="-march=silvermont -O2 -pipe"
+          
+          # Añadimos el fix para la versión de CMake en Arch
           CC=clang CXX=clang++ cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -DJNI_USE_JNIVM=ON \
-            -DGAMEWINDOW_SYSTEM=SDL3
+            -DGAMEWINDOW_SYSTEM=SDL3 \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
           make -j$(nproc)
 
       - name: Build UI
         run: |
           cd ui-build
           mkdir build && cd build
-          # Mismas optimizaciones para la UI
           export CFLAGS="-march=silvermont -O2 -pipe"
           export CXXFLAGS="-march=silvermont -O2 -pipe"
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
-            -DGAME_LAUNCHER_PATH=$(pwd)/../../client-build/build
+            -DGAME_LAUNCHER_PATH=$(pwd)/../../client-build/build \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
           make -j$(nproc)
 
       - name: Create Release Package
