@@ -69,17 +69,21 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DGAME_LAUNCHER_PATH=$(pwd)/../../client-build/build
           make -j$(nproc)
-
+          
+          
       - name: Create Release Package
         run: |
           mkdir -p mcpelauncher-silvermont
-          # Copia el cliente
-          cp client-build/build/mcpelauncher-client mcpelauncher-silvermont/ || echo "Client not found"
-          # Copia la UI (busca ambos nombres posibles)
-          cp ui-build/build/mcpelauncher-ui* mcpelauncher-silvermont/ || echo "UI not found"
+          
+          find client-build/build -type f -executable -name "mcpelauncher-client" -exec cp {} mcpelauncher-silvermont/ \;
+          find ui-build/build -type f -executable -name "mcpelauncher-ui*" -exec cp {} mcpelauncher-silvermont/ \;
+          
+          ls -lh mcpelauncher-silvermont/
           
           echo "Built for Celeron N2807 (Silvermont)" > mcpelauncher-silvermont/readme.txt
-          tar -cvf mcpelauncher-native.tar mcpelauncher-silvermont/
+          echo "Backend: SDL3 | UI: Qt6" >> mcpelauncher-silvermont/readme.txt
+          
+          tar -cvf mcpelauncher-native-silvermont.tar mcpelauncher-silvermont/
 
       - name: Release
         uses: softprops/action-gh-release@v2
