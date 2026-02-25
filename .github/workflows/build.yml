@@ -89,4 +89,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: mcpelauncher-native.tar
+          files: mcpelauncher-native-silvermont.tar
