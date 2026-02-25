@@ -1,10 +1,10 @@
-name: Native Build for Celeron N2807
+name: Build MCPELauncher Qt6 + SDL3 (Celeron N2807)
 
 on:
   push:
     tags:
-      - 'v*' # Se activa al crear una etiqueta (ej. v1.0.0)
-  workflow_dispatch: # Permite ejecución manual
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
@@ -13,74 +13,89 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout Client Manifest
+      - name: Checkout Client Manifest (QT6 Branch)
         uses: actions/checkout@v4
         with:
           repository: minecraft-linux/mcpelauncher-manifest
-          path: mcpelauncher
+          ref: qt6
+          path: client-build
           submodules: recursive
 
-      - name: Checkout UI Manifest
+      - name: Checkout UI Manifest (QT6 Branch)
         uses: actions/checkout@v4
         with:
           repository: minecraft-linux/mcpelauncher-ui-manifest
-          path: mcpelauncher-ui
+          ref: qt6
+          path: ui-build
           submodules: recursive
 
-      - name: Install Build Dependencies
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            g++ clang cmake make git ca-certificates \
+            g++ clang cmake make git pkg-config ca-certificates \
             libssl-dev libpng-dev libx11-dev libxi-dev \
             libcurl4-openssl-dev libudev-dev libevdev-dev \
-            libegl1-mesa-dev libasound2-dev \
+            libegl1-mesa-dev libasound2-dev libpulse-dev \
             qt6-base-dev qt6-webengine-dev qt6-declarative-dev \
-            libuv1-dev libzip-dev libprotobuf-dev protobuf-compiler \
-            libsdl3-dev
+            libqt6svg6-dev libuv1-dev libzip-dev libprotobuf-dev \
+            protobuf-compiler
+
+      - name: Build SDL3 from Source
+        run: |
+          git clone --depth 1 --branch release-3.2.x https://github.com/libsdl-org/SDL.git /tmp/SDL3
+          cmake -S /tmp/SDL3 -B /tmp/SDL3/build \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
+          sudo cmake --build /tmp/SDL3/build -j$(nproc)
+          sudo cmake --install /tmp/SDL3/build
 
       - name: Build mcpelauncher-client (Native Optimization)
         run: |
-          cd mcpelauncher
+          cd client-build
           mkdir build && cd build
-          # Optimizaciones específicas para Celeron N2807 (Silvermont)
+          # Optimizaciones específicas para Intel Celeron N2807
           export CFLAGS="-march=silvermont -O3 -pipe"
           export CXXFLAGS="-march=silvermont -O3 -pipe"
           
           CC=clang CXX=clang++ cmake.. \
             -DCMAKE_BUILD_TYPE=Release \
             -DJNI_USE_JNIVM=ON \
-            -DGAMEWINDOW_SYSTEM=SDL3
+            -DGAMEWINDOW_SYSTEM=SDL3 \
+            -Wno-dev
           make -j$(nproc)
 
       - name: Build mcpelauncher-ui
         run: |
-          cd mcpelauncher-ui
+          cd ui-build
           mkdir build && cd build
-          # Vinculamos con el cliente compilado arriba
+          # Vinculamos la interfaz con el cliente compilado
           cmake.. \
             -DCMAKE_BUILD_TYPE=Release \
-            -DGAME_LAUNCHER_PATH=$(pwd)/../../mcpelauncher/build
+            -DGAME_LAUNCHER_PATH=$(pwd)/../../client-build/build
           make -j$(nproc)
 
-      - name: Prepare Release Artifacts
+      - name: Create Release Tarball
         run: |
-          mkdir -p release_files
-          # Copiamos los binarios y recursos necesarios
-          cp mcpelauncher/build/mcpelauncher-client release_files/
-          cp mcpelauncher-ui/build/mcpelauncher-ui-qt release_files/
+          mkdir -p mcpelauncher-silvermont
+          cp client-build/build/mcpelauncher-client mcpelauncher-silvermont/
+          cp ui-build/build/mcpelauncher-ui-qt mcpelauncher-silvermont/
           
-          # Crear el tarball
-          tar -cvf mcpelauncher-n2807-native.tar release_files/
+          # Información de la arquitectura para referencia
+          echo "Optimized for Silvermont (Celeron N2807)" > mcpelauncher-silvermont/build_details.txt
+          echo "Branch: Qt6 | Backend: SDL3" >> mcpelauncher-silvermont/build_details.txt
+          
+          tar -cvf mcpelauncher-native-v1.21.tar mcpelauncher-silvermont/
 
-      - name: Create Release
+      - name: Upload Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: mcpelauncher-n2807-native.tar
-          name: Release ${{ github.ref_name }} (Native Celeron N2807)
+          files: mcpelauncher-native-v1.21.tar
+          name: Release ${{ github.ref_name }} (Native Silvermont)
           body: |
-            Compilación optimizada para Intel Celeron N2807 (Silvermont).
-            - Backend: SDL3 (Para reducir underruns de ALSA)
-            - March: silvermont
-            - JNI: JNIVM habilitado
+            ### Compilación Nativa para Celeron N2807
+            - **Arquitectura:** Silvermont (Bay Trail)
+            - **Frontend:** Qt6 (Moderno)
+            - **Audio:** SDL3 (Optimizado para evitar cortes/underruns)
+            - **JNI:** JNIVM habilitado
