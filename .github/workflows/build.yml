@@ -13,7 +13,7 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout Client Manifest (Branch QT6)
+      - name: Checkout Client
         uses: actions/checkout@v4
         with:
           repository: minecraft-linux/mcpelauncher-manifest
@@ -21,7 +21,7 @@ jobs:
           path: client-build
           submodules: recursive
 
-      - name: Checkout UI Manifest (Branch QT6)
+      - name: Checkout UI
         uses: actions/checkout@v4
         with:
           repository: minecraft-linux/mcpelauncher-ui-manifest
@@ -29,7 +29,7 @@ jobs:
           path: ui-build
           submodules: recursive
 
-      - name: Install System Dependencies
+      - name: Install Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -39,37 +39,32 @@ jobs:
             libegl1-mesa-dev libasound2-dev libpulse-dev \
             qt6-base-dev qt6-webengine-dev qt6-declarative-dev \
             qt6-base-private-dev libqt6svg6-dev \
-            libuv1-dev libzip-dev libprotobuf-dev protobuf-compiler
+            libuv1-dev libzip-dev libprotobuf-dev protobuf-compiler \
+            libxrandr-dev libxcursor-dev libxinerama-dev libxkbcommon-dev libwayland-dev
 
-      - name: Build SDL3 from Source
+      - name: Build SDL3
         run: |
           git clone --depth 1 --branch release-3.2.x https://github.com/libsdl-org/SDL.git /tmp/SDL3
-          cmake -S /tmp/SDL3 -B /tmp/SDL3/build \
-            -DCMAKE_INSTALL_PREFIX=/usr \
-            -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
+          cmake -S /tmp/SDL3 -B /tmp/SDL3/build -DCMAKE_INSTALL_PREFIX=/usr -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
           sudo cmake --build /tmp/SDL3/build -j$(nproc)
           sudo cmake --install /tmp/SDL3/build
 
-      - name: Build mcpelauncher-client
+      - name: Build Client
         run: |
           cd client-build
           mkdir build && cd build
           export CFLAGS="-march=silvermont -O2 -pipe"
           export CXXFLAGS="-march=silvermont -O2 -pipe"
-          
-          # ESPACIO CORREGIDO EN cmake ..
           CC=clang CXX=clang++ cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -DJNI_USE_JNIVM=ON \
-            -DGAMEWINDOW_SYSTEM=SDL3 \
-            -Wno-dev
+            -DGAMEWINDOW_SYSTEM=SDL3
           make -j$(nproc)
 
-      - name: Build mcpelauncher-ui (Qt6)
+      - name: Build UI
         run: |
           cd ui-build
           mkdir build && cd build
-          # ESPACIO CORREGIDO EN cmake ..
           cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -DGAME_LAUNCHER_PATH=$(pwd)/../../client-build/build
@@ -78,24 +73,16 @@ jobs:
       - name: Create Release Package
         run: |
           mkdir -p mcpelauncher-silvermont
-          # Verificación de existencia antes de copiar
-          [ -f client-build/build/mcpelauncher-client ] && cp client-build/build/mcpelauncher-client mcpelauncher-silvermont/
-          [ -f ui-build/build/mcpelauncher-ui-qt ] && cp ui-build/build/mcpelauncher-ui-qt mcpelauncher-silvermont/
+          # Copia el cliente
+          cp client-build/build/mcpelauncher-client mcpelauncher-silvermont/ || echo "Client not found"
+          # Copia la UI (busca ambos nombres posibles)
+          cp ui-build/build/mcpelauncher-ui* mcpelauncher-silvermont/ || echo "UI not found"
           
-          echo "Native Build for Celeron N2807 (Silvermont)" > mcpelauncher-silvermont/build_details.txt
-          echo "Optimizations: -march=silvermont -O2 | Backend: SDL3" >> mcpelauncher-silvermont/build_details.txt
-          
-          tar -cvf mcpelauncher-native-silvermont.tar mcpelauncher-silvermont/
+          echo "Built for Celeron N2807 (Silvermont)" > mcpelauncher-silvermont/readme.txt
+          tar -cvf mcpelauncher-native.tar mcpelauncher-silvermont/
 
-      - name: Upload Release Artifacts
+      - name: Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: mcpelauncher-native-silvermont.tar
-          name: Minecraft Launcher Native ${{ github.ref_name }}
-          body: |
-            ### Compilación Nativa Finalizada (Silvermont)
-            **Mejoras:**
-            - **Branch:** Rama `qt6`.
-            - **Audio/Video:** Backend `SDL3`.
-            - **Optimización:** `-march=silvermont` (Bay Trail).
+          files: mcpelauncher-native.tar
