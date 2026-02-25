@@ -29,7 +29,7 @@ jobs:
           path: ui-build
           submodules: recursive
 
-      - name: Install System Dependencies (Verified for Noble 24.04)
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -41,7 +41,7 @@ jobs:
             qt6-base-private-dev libqt6svg6-dev \
             libuv1-dev libzip-dev libprotobuf-dev protobuf-compiler
 
-      - name: Build SDL3 from Source (Not in 24.04 Repos)
+      - name: Build SDL3 from Source
         run: |
           git clone --depth 1 --branch release-3.2.x https://github.com/libsdl-org/SDL.git /tmp/SDL3
           cmake -S /tmp/SDL3 -B /tmp/SDL3/build \
@@ -50,37 +50,37 @@ jobs:
           sudo cmake --build /tmp/SDL3/build -j$(nproc)
           sudo cmake --install /tmp/SDL3/build
 
-      - name: Build mcpelauncher-client (Silvermont Optimized)
+      - name: Build mcpelauncher-client
         run: |
           cd client-build
           mkdir build && cd build
-          # Optimizaciones para Celeron N2807 (Silvermont)
-          # Se usa -O2 para evitar cache thrashing en CPUs de 1MB L2
           export CFLAGS="-march=silvermont -O2 -pipe"
           export CXXFLAGS="-march=silvermont -O2 -pipe"
           
-          CC=clang CXX=clang++ cmake.. \
+          # ESPACIO CORREGIDO EN cmake ..
+          CC=clang CXX=clang++ cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -DJNI_USE_JNIVM=ON \
             -DGAMEWINDOW_SYSTEM=SDL3 \
             -Wno-dev
-          make -j2
+          make -j$(nproc)
 
       - name: Build mcpelauncher-ui (Qt6)
         run: |
           cd ui-build
           mkdir build && cd build
-          # Espacio corregido en 'cmake..' y ruta absoluta al cliente
-          cmake.. \
+          # ESPACIO CORREGIDO EN cmake ..
+          cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -DGAME_LAUNCHER_PATH=$(pwd)/../../client-build/build
-          make -j2
+          make -j$(nproc)
 
       - name: Create Release Package
         run: |
           mkdir -p mcpelauncher-silvermont
-          cp client-build/build/mcpelauncher-client mcpelauncher-silvermont/
-          cp ui-build/build/mcpelauncher-ui-qt mcpelauncher-silvermont/
+          # Verificación de existencia antes de copiar
+          [ -f client-build/build/mcpelauncher-client ] && cp client-build/build/mcpelauncher-client mcpelauncher-silvermont/
+          [ -f ui-build/build/mcpelauncher-ui-qt ] && cp ui-build/build/mcpelauncher-ui-qt mcpelauncher-silvermont/
           
           echo "Native Build for Celeron N2807 (Silvermont)" > mcpelauncher-silvermont/build_details.txt
           echo "Optimizations: -march=silvermont -O2 | Backend: SDL3" >> mcpelauncher-silvermont/build_details.txt
@@ -96,7 +96,6 @@ jobs:
           body: |
             ### Compilación Nativa Finalizada (Silvermont)
             **Mejoras:**
-            - **Branch:** Rama `qt6` (más moderna y compatible).
-            - **Audio:** Backend `SDL3` nativo (solución para ALSA underruns).
-            - **Optimización:** `-march=silvermont` para CPUs Bay Trail (Celeron N2807).
-            - **Estabilidad:** Nivel de optimización `-O2` para prevenir fallos de ejecución.
+            - **Branch:** Rama `qt6`.
+            - **Audio/Video:** Backend `SDL3`.
+            - **Optimización:** `-march=silvermont` (Bay Trail).
