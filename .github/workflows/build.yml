@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # La "magia": Compilamos en Arch para que funcione en Arch
+
     container:
       image: archlinux:latest
 
@@ -20,76 +20,82 @@ jobs:
       - name: Install Arch Dependencies
         run: |
           pacman -Syu --noconfirm
-          # Instalamos exactamente lo que pediste, pero actualizado a Qt6 para la rama compatible
-          pacman -S --noconfirm base-devel cmake git clang ca-certificates \
-            openssl curl libuv libzip protobuf qt6-base qt6-webengine \
-            qt6-declarative qt6-svg qt6-tools libxrandr libxinerama \
-            libxcursor libxi libpng libx11 zlib systemd-libs libevdev \
-            mesa alsa-lib libpulse libxtst libxkbcommon
+          pacman -S --noconfirm \
+            base-devel \
+            cmake \
+            git \
+            clang \
+            ca-certificates \
+            openssl \
+            curl \
+            libuv \
+            libzip \
+            protobuf \
+            libxrandr \
+            libxinerama \
+            libxcursor \
+            libxi \
+            libpng \
+            libx11 \
+            zlib \
+            systemd-libs \
+            libevdev \
+            mesa \
+            alsa-lib \
+            libpulse \
+            libxtst \
+            libxkbcommon \
+            wayland \
+            wayland-protocols \
+            sdl3
 
-      - name: Checkout Client
+      - name: Checkout MCPelauncher
         uses: actions/checkout@v4
         with:
           repository: minecraft-linux/mcpelauncher-manifest
-          ref: qt6
-          path: client-build
+          ref: ng
+          path: mcpelauncher
           submodules: recursive
 
-      - name: Checkout UI
-        uses: actions/checkout@v4
-        with:
-          repository: minecraft-linux/mcpelauncher-ui-manifest
-          ref: qt6
-          path: ui-build
-          submodules: recursive
-
-      - name: Build SDL3
+      - name: Build MCPelauncher Client
         run: |
-          git clone --depth 1 --branch release-3.2.x https://github.com/libsdl-org/SDL.git /tmp/SDL3
-          cmake -S /tmp/SDL3 -B /tmp/SDL3/build -DCMAKE_INSTALL_PREFIX=/usr -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
-          cmake --build /tmp/SDL3/build -j$(nproc)
-          cmake --install /tmp/SDL3/build
+          cd mcpelauncher
+          mkdir build
+          cd build
 
-      - name: Build Client
-        run: |
-          cd client-build
-          mkdir build && cd build
           export CFLAGS="-march=silvermont -O2 -pipe"
           export CXXFLAGS="-march=silvermont -O2 -pipe"
-          
-          # Añadimos el fix para la versión de CMake en Arch
+
           CC=clang CXX=clang++ cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -DJNI_USE_JNIVM=ON \
             -DGAMEWINDOW_SYSTEM=SDL3 \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-          make -j$(nproc)
 
-      - name: Build UI
-        run: |
-          cd ui-build
-          mkdir build && cd build
-          export CFLAGS="-march=silvermont -O2 -pipe"
-          export CXXFLAGS="-march=silvermont -O2 -pipe"
-          cmake .. \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DGAME_LAUNCHER_PATH=$(pwd)/../../client-build/build \
-            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-          make -j$(nproc)
+          cmake --build . -j$(nproc)
 
       - name: Create Release Package
         run: |
-          mkdir -p mcpelauncher-silvermont
-          find client-build/build -type f -executable -name "mcpelauncher-client" -exec cp {} mcpelauncher-silvermont/ \;
-          find ui-build/build -type f -executable -name "mcpelauncher-ui*" -exec cp {} mcpelauncher-silvermont/ \;
-          
-          echo "Built natively in Arch Linux container" > mcpelauncher-silvermont/readme.txt
-          echo "Architecture: Silvermont (Celeron N2807)" >> mcpelauncher-silvermont/readme.txt
-          
-          tar -cvf mcpelauncher-native-silvermont.tar mcpelauncher-silvermont/
+          mkdir -p release
+
+          find mcpelauncher/build \
+            -type f \
+            -executable \
+            -name "mcpelauncher-client" \
+            -exec cp {} release/ \;
+
+          cat > release/README.txt <<EOF
+          MCPelauncher Client
+          Built with:
+          - SDL3 backend
+          - Wayland support (when available)
+          - Target CPU: Silvermont
+          EOF
+
+          tar -cvf mcpelauncher-client-silvermont.tar release
 
       - name: Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: mcpelauncher-native-silvermont.tar
+          files: mcpelauncher-client-silvermont.tar
