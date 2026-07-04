@@ -99,7 +99,22 @@ jobs:
 
           tar -cvf mcpelauncher-client-silvermont.tar release
 
+      - name: Create Tag
+        id: tag
+        run: |
+          TAG="v$(date +'%Y.%m.%d')-${GITHUB_RUN_NUMBER}"
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag "$TAG"
+          git push origin "$TAG"
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: mcpelauncher-client-silvermont.tar
+          tag_name: ${{ steps.tag.outputs.tag }}
+          generate_release_notes: true
+          files: mcpelauncher-native-silvermont.tar
