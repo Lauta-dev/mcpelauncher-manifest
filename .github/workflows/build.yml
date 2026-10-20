@@ -84,7 +84,6 @@ jobs:
             -DBUILD_UI=OFF \
             -DBUILD_WEBVIEW=OFF \
             -DENABLE_DEV_PATHS=OFF \
-            -DUSE_SNMALLOC=ON \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
@@ -104,7 +103,6 @@ jobs:
           - SDL3 backend
           - Wayland support (when available)
           - Target CPU: Silvermont
-          - snmalloc allocator
 
           Run: tar -xzf mcpelauncher-client-silvermont.tar.gz && ./release/bin/mcpelauncher-client
           EOF
