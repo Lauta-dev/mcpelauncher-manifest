@@ -96,7 +96,7 @@ jobs:
       - name: Package
         run: |
           cmake --install build --prefix release
-          find release -type f \( -executable -o -name "*.so*" \) -exec strip --strip-unneeded {} +
+          find release -type f -exec sh -c 'strip --strip-unneeded "$1" 2>/dev/null || true' _ {} \;
           cat > release/README.txt <<EOF
           MCPelauncher Client
           Built with:
