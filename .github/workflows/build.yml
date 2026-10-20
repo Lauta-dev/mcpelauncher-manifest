@@ -96,6 +96,7 @@ jobs:
       - name: Package
         run: |
           cmake --install build --prefix release
+          find release/share/mcpelauncher/lib -mindepth 1 -maxdepth 1 -type d ! -name 'x86_64' -exec rm -rf {} +
           find release -type f -exec sh -c 'strip --strip-unneeded "$1" 2>/dev/null || true' _ {} \;
           cat > release/README.txt <<EOF
           MCPelauncher Client
