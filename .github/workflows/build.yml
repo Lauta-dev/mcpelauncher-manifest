@@ -69,7 +69,11 @@ jobs:
           repository: Lauta-dev/mcpelauncher-manifest
           ref: ng
           path: mcpelauncher
-          submodules: recursive
+
+      - name: Init submodules from upstream repos
+        run: |
+          git config --global url."https://github.com/minecraft-linux/".insteadOf "https://github.com/Lauta-dev/"
+          git -C mcpelauncher submodule update --init --recursive --progress
 
       - name: Build MCPelauncher Client
         run: |
